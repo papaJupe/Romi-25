@@ -2,16 +2,14 @@
 
 // v. D (this) - simplify to flat framework, no cmd or subsys, all in robot.j
 // PID control x 3: drive distance, drive straight, turn degr.
-// work inconsistently, much worse than v. C's where I extend PIDCommand
+// v. '25 eliminate PIDCmd, refactor w/ only PIDController, slowed 50 to 10 hz,
+// so also div. feedback increment by 5; much tuning of multiplier needed.
 
-// anomalies in teleOp drive straight w/ button 6 not present before; auto
-// drive straight poor, auto turn 180 OK by itself, out of control
-// after straight drive ?? why No auto's end properly. 
-// far worse performance of these PID controls vs. subbing PIDcmd as in C
-// 
+// much improved teleOp drive straight w/ button 6; auto
+// drive straight fair, auto turn 180 OK alone, irregular
+// 180 turn after straight drive ?? why. No auto's end aP -> tI 
+
 // RCstub kept for reference, does nothing; other unused classes deleted.
-
-// v. C -- WPI PIDcontroller for drive & turn, PWM motor, cmd/subsys framewk
 
 // For live vision, attach camera to any pi port; its cam server streams
 // automatically to pi web interface: wpilibpi.local:1181 or mpeg stream,
@@ -29,14 +27,11 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.Spark;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-//import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
-// import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.PrintCommand;
 import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
-//import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 import frc.robot.sensors.OnBoardIO;
@@ -45,8 +40,6 @@ import frc.robot.sensors.OnBoardIO.ChannelMode;
 import static frc.robot.Constant.*;
 
 /**
- * The VM is configured to automatically run this class, calling the
- * functions corresponding to each mode, as described in TimedRobot docs.
  * all robot config set in Robot.j -- normally few specifics here
  */
 public class Robot extends TimedRobot {
@@ -56,7 +49,7 @@ public class Robot extends TimedRobot {
 
   private final OnBoardIO m_onboardIO = new OnBoardIO(ChannelMode.INPUT, ChannelMode.INPUT);
 
-  private final DigitalInput frontIRsensor = new DigitalInput(9);
+  private final DigitalInput frontIRsensor = new DigitalInput(9); // not yet used
 
   private final double kCountsPerRevolution = 1440.0;
   private final double kWheelDiameterInch = 2.75591; // 70 mm
@@ -90,7 +83,7 @@ public class Robot extends TimedRobot {
   // in auto drive&turn to go straight - 'turn' param setpoint 0
   private final PIDController piDriv = new PIDController(kStabilP, kStabilI, kStabilD, 0.10);
 
-  // ... turn to some angle
+  // ... turn to some angle, not final, revalued inline
   private PIDController pidTurn = new PIDController(kTurnP, kTurnI, kTurnD, kPIDperiod);
 
   // private Command stopIt; // attempt cmd to stop autoPeriodic, fails
@@ -148,7 +141,7 @@ public class Robot extends TimedRobot {
     // setpoint before it's counted as reaching the reference
     // unclear what units are here,
     // likely inch (encoder reporting unit)
-    piDist.setTolerance(2); //  delete 2nd accel param
+    piDist.setTolerance(2); // delete 2nd accel param
 
     piDriv.setTolerance(2);
     // degree pos. Tol., deg/sec rate Tol.
@@ -198,18 +191,19 @@ public class Robot extends TimedRobot {
     twoTimer = new Timer();
   } // end autoInit
 
-  /** This function is called periodically during autonomous.pid param only
+  /**
+   * This function is called periodically during autonomous.pid param only
    * guaranteed for 1st auto run
-  */
+   */
   @Override
   public void autonomousPeriodic() {
-    double distGoal = 36;   // inch
+    double distGoal = 36; // inch
     double distNow = (m_leftEncoder.getDistance() +
         m_rightEncoder.getDistance()) / 2;
     SmartDashboard.putNumber("distance", distNow);
 
     switch (m_autoSelected) { // sequence built by changing this var
-      case "RETURN":  // D&T end angle too varied for return case to get called
+      case "RETURN": // D&T end angle too varied for return case to get called
         goBack = true; // repeat wanted
         m_autoSelected = "DRIV&TURN";
         break;
@@ -225,10 +219,10 @@ public class Robot extends TimedRobot {
           mTimer.start(); // simulate wait cmd
           m_gyro.reset(); // should keep @ setpt 0
 
-          if (mTimer.get() > 4.0) { //unclear why different param needed for pidTurn here
-            pidTurn = new PIDController(0.032, 0.000015, kTurnD, kPIDperiod); 
+          if (mTimer.get() > 4.0) { // unclear why different param needed for pidTurn here
+            pidTurn = new PIDController(0.032, 0.000015, kTurnD, kPIDperiod);
             pidTurn.enableContinuousInput(-180, 180);
-            pidTurn.setTolerance(2);       
+            pidTurn.setTolerance(2);
             m_autoSelected = "TURN180";
             mTimer.stop();
           }
@@ -257,12 +251,12 @@ public class Robot extends TimedRobot {
           } else { // goBk false, so trying to end aP
             m_autoSelected = "endMe";
             break;
-          }  // end else
+          } // end else
         } // end timer > 3
 
         break;
 
-      case "endMe": //  trys to end aP
+      case "endMe": // trys to end aP
         new PrintCommand("StoppingAuto");
         this.teleopInit();
         // ? does not stop aP, does not advance to teleopInit
@@ -291,7 +285,7 @@ public class Robot extends TimedRobot {
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() { // need gyroPID
-    //  to drive straight in teleop, just this drifts to L badly
+    // to drive straight in teleop, just this drifts to L badly
     m_Drive.arcadeDrive(-m_controller.getLeftY() * 0.45,
         -m_controller.getRightX() * 0.35, true);
   }
