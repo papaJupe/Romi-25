@@ -29,12 +29,15 @@ public final class Constants {
     public static final double kTurnI = 0.0004;
     public static final double kTurnD = 0.0000;
 
-    public static final double kMaxTurnVeloc = 60;
-    public static final double kMaxTurnAcceler = 60;
+    public static final double kMaxTurnDegPerSec = 60;
+    public static final double kMaxTurnAccel = 60;
 
     public static final double kTurnTolerDeg = 2;
     public static final double kTurnRateTolerVeloc = 60;
     // deg per second
+
+   public static final double kvVoltSecondsPerDegree = 0.02;
+   public static final double kaVoltSecondsSquaredPerDegree = 0.001;
   } // end drive constant
 
   // public static final class OIConstants {

@@ -1,145 +1,110 @@
-// ROMI GYRODRIVpid - C  24                RobotContainer.j
+// ROMI GYRO DRIVpid - C 25                RobotContainer.j
 
 package frc.robot;
 
-import edu.wpi.first.math.controller.PIDController;
+//import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.PrintCommand;
+import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
-import edu.wpi.first.wpilibj2.command.PIDCommand;
 
-import frc.robot.Constants.DriveConstants;
+// import frc.robot.Constants.DriveConstants;
 import frc.robot.subsystems.DriveSubsys;
-import frc.robot.commands.ArcadeDrive;
-import frc.robot.commands.AutonSequen;
-import frc.robot.commands.TurnToAngle;
-import frc.robot.commands.TurnToAngleProf;
 import frc.robot.subsystems.OnBoardIO;
 import frc.robot.subsystems.OnBoardIO.ChannelMode;
 
-/* RC is where robot specifics are defined. Since Command-based is a
- * "declarative" paradigm, very little robot logic should be handled in
- * the {@link Robot} periodic methods other than the scheduler calls.
- * Instead, the specifics of operating the robot (including
- * subsystems, commands, and button mappings) should be declared here.
+/*  The specifics of operating robot (subsystems,
+ *  commands [1 default], and button mappings) are put here.
  */
 public class RobotContainer {
-    // instance the two subsystems
-    protected final DriveSubsys m_drivetrain = new DriveSubsys();
-    private final OnBoardIO m_onboardIO = new OnBoardIO(ChannelMode.INPUT,
-                                          ChannelMode.INPUT);
+        // instance the two subsystems
+        public final DriveSubsys m_drive = new DriveSubsys();
+        private final OnBoardIO m_onboardIO = new OnBoardIO(ChannelMode.INPUT,
+                        ChannelMode.INPUT);
 
-    // instance joystick @ 0 --assumes controller plugged into USB 0
-    // numerous get()s in AD cmd require public stick
-    public static final XboxController m_controller = 
-                                      new XboxController (0);
+        // instance joystick @ 0 --assumes controller plugged into USB 0 port
+        // numerous get()s in AD cmd require public stick <-- still ?;? why static
+        public static final XboxController m_controller = new XboxController(0);
 
-    // allows SmartDashboard to pick autonomous routine
-    private final SendableChooser<Command> m_chooser = new SendableChooser<>();
+        // allows SmartDashboard to pick autonomous routine
+        private final SendableChooser<Command> m_chooser = new SendableChooser<>();
 
-    // N.B. I/O pin function config possible in web interface; v. base code
+        // N.B. I/O pin function config possible in web interface; v. base code
 
-    /**
-     * CONSTRUCT container for robot: its single method, configBB() sets
-     * Drivetrain [subsystem's] default Cmd, OperatorInterface (OI)
-     * action, Smart Dashbd Autonomous chooser options.
-     * --- defines the specifics of this robot
-     */
-    public RobotContainer() {
-        // Configure joystick button bindings et. al.
-        configureButtonBindings();
-    } // end constructor
+        /*
+         * CONSTRUCT container for robot: its former method, configBB() not
+         * needed (mis-named anyway) -- its inits moved here. they include:
+         * Drivetrain [subsystem] default Cmd, OperatorInterface (OI)
+         * trigger, Smart Dashbd Auton chooser + its cmd option.
+         * --- these define & init the specific controls of this robot
+         */
+        public RobotContainer() {
+                // orig. RC only contained configureButtonBindings() for basic init;
+                // phasing out formal Cmd class used before -->
+                // m_drive.setDefaultCommand(new ArcadeDrive(
+                // now, to avoid formal AD Command class, just lambda + subsys method
+                m_drive.setDefaultCommand(new RunCommand(
+                        () -> m_drive.arcaDriv(m_controller.getLeftY(), m_controller.getRightX())));  
 
-    /**
-     * Use this method to define your button->command mappings. Buttons can be
-     * created by instantiating a {GenericHID} or one of its subclasses
-     * edu.wpi.first.wpilibj.Joystick} or {XboxController}, and then passing
-     * it to a {@link edu.wpi.first.wpilibj2.command.button.JoystickButton}.
-     */
-    private void configureButtonBindings() {
-        // Default command is ArcadeDrive. Runs unless another command
-        // is scheduled over it.(e.g. runs in teleOp unless overridden)
-        // [orig.] m_drivetrain.setDefaultCommand(getArcadeDriveCommand());
-        // this has less obscure syntax (v.i.), simpler constructor
-        m_drivetrain.setDefaultCommand(new ArcadeDrive(m_drivetrain));
+                // Example of onboard romi IO buttons doing something
+                Trigger onboardButtonA = new Trigger(m_onboardIO::getButtonAPressed);
+                onboardButtonA
+                                .whileTrue(new PrintCommand("onbord A Press"))
+                                .whileFalse(new PrintCommand("onbord A Release"));
 
-        // m_robotDrive.setDefaultCommand(
-        // // A split-stick arcade command, with forward/backward controlled
-        // // by the left
-        // // hand, and turning controlled by the right.
-        // new RunCommand( () -> m_robotDrive.arcadeDrive(
-        // -m_driverController.getLeftY(), -m_driverController.getRightX()),
-        // m_robotDrive));
+                // button A (1) reset Gyro (to 0), now done more simply in rP
+                // new JoystickButton(m_controller, 1)
+                // .onTrue(new InstantCommand(() -> setGyro()))
+                // .onTrue(new PrintCommand("Pad A Press"));
 
-        // Example of onboard IO buttons doing something
-        Trigger onboardButtonA = new Trigger(m_onboardIO::getButtonAPressed);
-        onboardButtonA
-                .whileTrue(new PrintCommand("onbord A Press"))
-                .whileFalse(new PrintCommand("onbord A Release"));
+                // in v. B pressing during auto activated gyro stabiliz
+                // new JoystickButton(m_controller, 6)
+                // .onTrue(new InstantCommand(() -> tGyroMode(true)))
+                // .onFalse(new InstantCommand(() -> tGyroMode(false)));
 
-        // button A (1) resets Gyro (to 0), now done more simply in rP
-        // new JoystickButton(m_controller, 1)
-        // .onTrue(new InstantCommand(() -> m_drivetrain.resetGyro()))
-        // .onTrue(new PrintCommand("Pad A Press"));
+                // toDo: revise button trigger to call subsys inline command instead
+                // of cmd class instance; make all resemble 1st trigger
 
-        // Stabilize to drive straight w/ gyro when R bumper is held
-        // in teleOp, bypassing AD cmd; Auto now has its own PID cmds
-        new JoystickButton(m_controller, 6)
-                .whileTrue(
-                        new PIDCommand(
-                                new PIDController(
-                                        DriveConstants.kStabilizP,
-                                        DriveConstants.kStabilizI,
-                                        DriveConstants.kStabilizD),
-                                // Close the loop on the turn rate
-                                m_drivetrain::getGyroAngleZ,
-                                // Setpoint is 0 for straight driving
-                                0,
-                                // Pipe output to turn param of _P mod method
-                                output -> m_drivetrain.arcaDrivP(-m_controller.
-                                        getLeftY() * 0.7, output), // unsquared
-                                // Require the robot drive
-                                m_drivetrain));
+                // Drive at reduced speed when the left bumper is held
+                new JoystickButton(m_controller, 5)
+                        .onTrue(new InstantCommand(() -> m_drive.setMaxSpeed(0.7)))
+                        .onFalse(new InstantCommand(() -> m_drive.setMaxSpeed(1.0)));
 
-        // in v. B pressing during auto activated gyro stabiliz differently
-        // new JoystickButton(m_controller, 6)
-        // .onTrue(new InstantCommand(() -> m_drivetrain.setGyroMode(true)))
-        // .onFalse(new InstantCommand(() -> m_drivetrain.setGyroMode(false)));
+                // Turn to -90 degrees when the 'X' button is pressed, ? 5 second timeout
+                new JoystickButton(m_controller, 3)
+                        .onTrue(m_drive.turnToAngleCmd(-90));
 
-        // Drive at reduced speed when the left bumper is held
-        new JoystickButton(m_controller, 5)
-                .onTrue(new InstantCommand(() -> 
-                                   m_drivetrain.setMaxOutput(0.7)))
-                .onFalse(new InstantCommand(() -> 
-                                   m_drivetrain.setMaxOutput(1.0)));
+                // Turn to +90 degrees with profile when the B button is pressed,
+                // with a 5 second timeout
+                new JoystickButton(m_controller, 2)
+                                .onTrue(m_drive.turnToAngleProfCommand(90));
 
-        // Turn to -90 degrees when the 'X' button is pressed, 5 second timeout
-        new JoystickButton(m_controller, 3)
-                .onTrue(new TurnToAngle(-90,
-                        m_drivetrain).withTimeout(5));
+                // setup SmartDashboard options
+                m_chooser.setDefaultOption("Auto Turn 90", m_drive.turnToAngleProfCommand(90)); 
+                m_chooser.addOption("DriveDistance", m_drive.driveDistanceCommand(32, 0.5));
+                // m_chooser.addOption("Auton Sequen", new AutonSequen());
 
-        // Turn to +90 degrees with profile when the B button is pressed,
-        // with a 5 second timeout
-        new JoystickButton(m_controller, 2)
-                .onTrue(new TurnToAngleProf(90, m_drivetrain).withTimeout(5));
+                SmartDashboard.putData(m_chooser);
 
-        // Setup SmartDashboard options
-        m_chooser.setDefaultOption("Auto Turn 90", new TurnToAngle(90, m_drivetrain));
-        m_chooser.addOption("Auton Sequen", new AutonSequen(m_drivetrain));
+        } // end RC constructor
 
-        SmartDashboard.putData(m_chooser);
+        // // passes selected auto command to the scheduling Robot.j class
+        // // the one & only RC method
+        public Command getAutonomousCommand() {
+                return m_chooser.getSelected();
+        } // end getAutoCmd
 
-    } // end configBB()
+        //from rapid react RC   
+//   public Command getAutonomousCommand() {
+//         // Drive forward for 2 meters at half speed with a 3 second timeout
+//         return m_drive
+//             .driveDistanceCommand(AutoConstants.kDriveDistanceMeters, AutoConstants.kDriveSpeed)
+//             .withTimeout(AutoConstants.kTimeoutSeconds);
+//       }
 
-    // ... passes selected auto command to the scheduling Robot.j class
-    // @return the command to run in autonomous
-    public Command getAutonomousCommand() {
-        return m_chooser.getSelected();
-    } // end get.AutoCmd
-
-} // end class
+} // end RC class

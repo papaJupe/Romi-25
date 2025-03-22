@@ -1,12 +1,8 @@
-// RomigyroDrivPID - C - 24             Robot.j  cmd/subsys framewk
+// RomigyroDrivPID - C - 25             Robot.j  cmd/subsys framewk
 
-// edit 240118 try to get profiled turn to work, still erratic
-// edit 240214 added romi vendordep (no effect, may permit update
-// online?) profile turn helped by increasing Tol constant, still
-// starts w/ undershoot, then increases to overshoot; same can
-// occur w/ auto turn or triggered turn -- likely romi hardware
-// irregular response, also temp variation ?
-
+// total restructuring for '25 update. old PID classes now deprecated,
+// + poor function --> condense cmd for Drive into that subsys, autoSeq
+// stay in /commands.  Keep in rI vs. redo ? : ?refactor init to RC?
 // uses WPI PIDcontrol lib in RC button to activate gyro in teleOp
 // drive and DriveDistaStable cmd (used in Auto sequence)
 
@@ -21,10 +17,13 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 
-/**
- * The VM is configured to automatically run this class, and call the
- * functions corresponding to each mode, as described in TimedRobot doc.
- * -- very little here specific to any one robot.
+/* The VM is configured to run this class automatically, and call its
+ * methods for each mode. WPI dogma says:
+ * "Since Command-based is a "declarative" paradigm [??], very little robot 
+*  logic should be handled in Robot periodics besides scheduler calls."
+ * Now -- little here specific to any one robot; 
+ * but if rI goes away, this class could use an explicit Robot
+ * constructor for init/bindings & run project simple ops in periodic
  */
 public class Robot extends TimedRobot {
   private Command m_autonomousCommand;
@@ -32,14 +31,14 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
-    // Instantiate RobotContainer --> declares, instances, configs the
+    // instantiate RobotContainer --> declares, instances, configs the
     // robot specific components and their functionality (methods).
     m_robotContainer = new RobotContainer();
   }
 
   // This function is called every robot packet, no matter the mode.
-  // Does things you want run during all modes, like diagnostics.
-  // This runs after the mode specific periodic functions, but before
+  // Does things you want run in all modes, like diagnostics.
+  // They run after the mode specific periodic functions, but before
   // LiveWindow and SmartDashboard integrated updating.
   @Override
   public void robotPeriodic() {
@@ -47,11 +46,12 @@ public class Robot extends TimedRobot {
     // newly-scheduled commands, running now-scheduled commands,
     // removing finished or interrupted commands, and running subsystem periodics.
     // Need CS.run here for anything in the Cmd/Subsys framework to work.
-    SmartDashboard.putNumber("Z axis Rot",
-        m_robotContainer.m_drivetrain.m_gyro.getAngleZ());
+      SmartDashboard.putNumber("Z axis Rot",
+                  m_robotContainer.m_drive.m_gyro.getAngleZ());
 
     if (RobotContainer.m_controller.getRawButton(1))
-      m_robotContainer.m_drivetrain.resetGyro();
+        m_robotContainer.m_drive.resetGyro();
+
     CommandScheduler.getInstance().run();
   } // end robotPeriodic
 
@@ -64,13 +64,13 @@ public class Robot extends TimedRobot {
   public void disabledPeriodic() {
   }
 
-  // autoInit runs the autonomous command set in {@link RobotContainer}
+  // autoInit runs the autonomous command set in {RobotContainer <-- chooser}
   @Override
   public void autonomousInit() {
     // RC got selected routine from the SmartDashboard
     m_autonomousCommand = m_robotContainer.getAutonomousCommand();
-    m_robotContainer.m_drivetrain.resetEncoders();
-    m_robotContainer.m_drivetrain.resetGyro();
+    m_robotContainer.m_drive.resetEncoders();
+    m_robotContainer.m_drive.resetGyro();
     // schedule the selected autonomous command (if not empty variable)
     if (m_autonomousCommand != null) {
       m_autonomousCommand.schedule();
@@ -89,11 +89,11 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.cancel();
     }
-    m_robotContainer.m_drivetrain.resetEncoders();
-    m_robotContainer.m_drivetrain.resetGyro();
+    m_robotContainer.m_drive.resetEncoders();
+    m_robotContainer.m_drive.resetGyro();
   } // end teleInit
 
-  /** This function is called periodically during operator control. */
+  /** This method is called periodically during operator control. */
   @Override
   public void teleopPeriodic() { // rt bumper button hold activates
     // PID mode to drive straight in teleop [v. RC JoystButton(cmd)

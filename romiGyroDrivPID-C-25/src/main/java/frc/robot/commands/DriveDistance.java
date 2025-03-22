@@ -1,4 +1,4 @@
-// VSpace\romiGyroDrivPID - C 24  auto cmd   DriveDistance.j   
+// VSpace\romiGyroDrivPID - C 25  auto cmd   DriveDistance.j   
 
 package frc.robot.commands;
 
@@ -13,8 +13,8 @@ public class DriveDistance extends Command {
 
   /**
    * Creates new DriveDistance command; goes 'straight' fwd/bak at set
-   * speed for distance per wheel encoders. No stabiliz unless Rt bumper
-   * button held, so I use DDStable in sequential auto
+   * speed for distance per wheel encoders. No rotation stabiliz unless Rt
+   *  bumper button held, so I use DriveDistaStable in sequential auto
    * 
    * @param speed  The speed [0-1] for the robot to drive
    * @param inches The number of inches the robot to drive
@@ -36,15 +36,16 @@ public class DriveDistance extends Command {
   }
 
   // Called every time the scheduler runs it.
+  // using arcaDrivP to avoid speed param negation
   @Override
   public void execute() {
-    m_drive.arcaDriv(m_speed, 0);
+    m_drive.arcaDrivP(m_speed, 0);
   }
 
   // Called once the command ends or is interrupted.
   @Override
   public void end(boolean interrupted) {
-    m_drive.arcaDriv(0, 0);
+    m_drive.arcaDrivP(0, 0);
   }
 
   // Returns true when the command should end.
