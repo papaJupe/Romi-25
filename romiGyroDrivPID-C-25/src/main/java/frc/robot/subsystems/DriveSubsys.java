@@ -115,20 +115,6 @@ public class DriveSubsys extends SubsystemBase {
   // } // end Cmd
 
   /* ? do these inline cmd classes retain all usual method: execute, end ?
-<<<<<<< HEAD
-
-   * Returns command that drives the robot at given distance and speed
-   * @param distanceMeters The distance to drive forward in inch
-   * expect deviant abrupt move
-   */
-  public Command driveDistanceCommand(double distanceInch, double speed) {
-    return runOnce( () -> { // Reset encoders at the start
-          m_leftEncoder.reset();
-          m_rightEncoder.reset();
-        })
-        // Drive forward at specified speed; ? correct ccw dev. by + rot here
-        .andThen(run(() -> arcaDriv(speed, 0)))
-=======
    * 
    * Return a command that drives the robot at given distance and speed
    * 
@@ -144,7 +130,6 @@ public class DriveSubsys extends SubsystemBase {
     })
     // Drive forward at specified speed; deviant R vs. L kV need rot mod
         .andThen(run(() -> arcaDriv(speed, 0.14)))
->>>>>>> 9b1d170a175aec2748b8c267d59408b54e9b83c9
         // End command when wheel has turned the specified distance
         .until(() -> // Math calc assume positive speed
         Math.max(m_leftEncoder.getDistance(), m_rightEncoder.getDistance()) >= distanceInch)
