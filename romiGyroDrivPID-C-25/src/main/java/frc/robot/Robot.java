@@ -1,10 +1,8 @@
 // RomigyroDrivPID - C - 25             Robot.j  cmd/subsys framewk
 
 // total restructuring for '25 update. old PID classes now deprecated,
-// + poor function --> condense cmd for Drive into that subsys, autoSeq
-// stay in /commands.  Keep in rI vs. redo ? : ?refactor init to RC?
+// + had poor function --> condense cmd for Drive & auto into that subsys.
 // uses WPI PIDcontrol lib in RC button to activate gyro in teleOp
-// drive and DriveDistaStable cmd (used in Auto sequence)
 
 // For live vision, attach camera to any pi port, its cam server streams
 // automatically to pi web interface: wpilibpi.local:1181 or mpeg 
@@ -46,11 +44,12 @@ public class Robot extends TimedRobot {
     // newly-scheduled commands, running now-scheduled commands,
     // removing finished or interrupted commands, and running subsystem periodics.
     // Need CS.run here for anything in the Cmd/Subsys framework to work.
-      SmartDashboard.putNumber("Z axis Rot",
-                  m_robotContainer.m_drive.m_gyro.getAngleZ());
 
     if (RobotContainer.m_controller.getRawButton(1))
-        m_robotContainer.m_drive.resetGyro();
+      m_robotContainer.m_drive.resetGyro();
+
+      SmartDashboard.putNumber("Z axis Rot",
+                     m_robotContainer.m_drive.m_gyro.getAngleZ());
 
     CommandScheduler.getInstance().run();
   } // end robotPeriodic
@@ -67,7 +66,7 @@ public class Robot extends TimedRobot {
   // autoInit runs the autonomous command set in {RobotContainer <-- chooser}
   @Override
   public void autonomousInit() {
-    // RC got selected routine from the SmartDashboard
+    // RC got selected routine from the SmartDashboard chooser
     m_autonomousCommand = m_robotContainer.getAutonomousCommand();
     m_robotContainer.m_drive.resetEncoders();
     m_robotContainer.m_drive.resetGyro();
