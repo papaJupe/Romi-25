@@ -1,4 +1,4 @@
-// romiGyroDrivPID - C  25           DriveSubsystem. j
+// romiGyroDrivPID - C  25           DriveSubsystem.j
 
 package frc.robot.subsystems;
 
@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.Spark;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.WaitCommand;
 
 import frc.robot.Constants.DriveConstants;
 import frc.robot.sensors.RomiGyro;
@@ -18,7 +19,7 @@ public class DriveSubsys extends SubsystemBase {
   private static final double kCountsPerRevolution = 1440.0;
   private static final double kWheelDiameterInch = 2.756; // 70 mm
   private double maxFactor = 1.0; // speed multiplier
-  private double rotFactor = 1.0; // rotation multiplier
+  private double rotFactor = 1.0; // turn multiplier
 
   // Romi has left and right motors set to
   // PWM channels 0 and 1 respectively
@@ -37,14 +38,13 @@ public class DriveSubsys extends SubsystemBase {
   // instance RomiGyro
   public final RomiGyro m_gyro = new RomiGyro();
 
-  // slowing period from 0.02 --> 0.1, calc increments need div. by 5
+  // slowing period from 0.02 --> 0.1, 50 hz calc deltas are 5x smaller
   private final PIDController p_controller = new PIDController(
       DriveConstants.kTurnP,
       DriveConstants.kTurnI,
       DriveConstants.kTurnD,
-                 0.1);
+      0.1);
 
-  // slowing period from 0.02 --> 0.1, calc increments need div. by 5
   private final ProfiledPIDController profP_controller = new ProfiledPIDController(
       DriveConstants.kTurnP,
       DriveConstants.kTurnI,
@@ -52,14 +52,14 @@ public class DriveSubsys extends SubsystemBase {
       new TrapezoidProfile.Constraints(
           DriveConstants.kMaxTurnDegPerSec,
           DriveConstants.kMaxTurnAccel),
-          0.1);
+      0.1);
 
   // to use FF + FB for drive accuracy, sometime
-  //private final SimpleMotorFeedforward m_feedforward =
-      // new SimpleMotorFeedforward(
-      //     DriveConstants.ksVolts,
-      //     DriveConstants.kvVoltSecondsPerInch,
-      //     DriveConstants.kaVoltSecondsSquaredPerinch);
+  // private final SimpleMotorFeedforward m_feedforward =
+  // new SimpleMotorFeedforward(
+  // DriveConstants.ksVolts,
+  // DriveConstants.kvVoltSecondsPerInch,
+  // DriveConstants.kaVoltSecondsSquaredPerinch);
 
   /* Construct a new drivetrain subsyst */
   public DriveSubsys() {
@@ -93,20 +93,20 @@ public class DriveSubsys extends SubsystemBase {
   // because top aD() is subsys. class method, second is inherited
   // super's diffDrive method; using same name == sloppy coding
   public void arcaDriv(double xaxisSpeed, double zaxisRotate) {
-    // stick input Y need invert
+    // stick input Y must invert by method caller
     // diffDrive's aD internally inverts z-rot to make (-) go CW, so..
-    m_diffDrive.arcadeDrive(-xaxisSpeed * maxFactor, -zaxisRotate * rotFactor, true);
+    m_diffDrive.arcadeDrive(xaxisSpeed * maxFactor, -zaxisRotate * rotFactor, true);
   }
 
   // small PID feedback numbers work better if not squared
   public void arcaDrivP(double xaxisSpeed, double zaxisRotate) {
     // PID feedback should not need speed invert ?
     // diffDrive's aD internally inverts z-rot to make (-) go CW, so..
-    m_diffDrive.arcadeDrive(xaxisSpeed * maxFactor, -zaxisRotate * 0.9, false);
+    m_diffDrive.arcadeDrive(xaxisSpeed * maxFactor, -zaxisRotate * 0.85, false);
   }
 
   // Return a command that drives the robot with arcade control
-  // would normal param work as well?
+  // ? would normal param work as well?
   // public Command arcadeDriveCommand(DoubleSupplier fwd, DoubleSupplier rot) {
   // // A split-stick arcade command, with forward/backward controlled by the left
   // // hand, and turning controlled by the right.
@@ -115,53 +115,72 @@ public class DriveSubsys extends SubsystemBase {
   // } // end Cmd
 
   /* ? do these inline cmd classes retain all usual method: execute, end ?
-
+   * 
    * Return a command that drives the robot at given distance and speed
-   * @param distanceMeters The distance to drive forward in inch
-   * expect deviant abrupt move
+   * 
+   * @param  The distance to drive straight forward in inch
+   * // more accur. veloc? Divide FF voltage by battery V to normalize to [-1, 1]
+   * // + m_feedforward.calculate(profP_controller.getSetpoint().velocity)
+   * // / RobotController.getBatteryVoltage()))
    */
-  public Command driveDistanceCommand(double distanceInch, double speed) {
-    return runOnce( () -> { // Reset encoders at the start
-          m_leftEncoder.reset();
-          m_rightEncoder.reset();
-        })
-        // Drive forward at specified speed
-        .andThen(run(() -> arcaDriv(speed, 0)))
+  public Command driveDistanceCmd(double distanceInch, double speed) {
+    return runOnce(() -> {      // Reset encoders at the start
+        m_leftEncoder.reset();
+        m_rightEncoder.reset();
+    })
+    // Drive forward at specified speed; deviant R vs. L kV need rot mod
+        .andThen(run(() -> arcaDriv(speed, 0.14)))
         // End command when wheel has turned the specified distance
-        .until( () -> 
-            Math.max(m_leftEncoder.getDistance(), m_rightEncoder.getDistance()) >= distanceInch)
+        .until(() -> // Math calc assume positive speed
+        Math.max(m_leftEncoder.getDistance(), m_rightEncoder.getDistance()) >= distanceInch)
         // Stop motor when the command ends
+        .finallyDo(interrupted -> arcaDriv(0, 0.0));
+
+  } // end drivDistCmd
+
+  /*
+   * Returns command to turn to an angle using PIDcontroller
+   * -- small rot factor, applied 5x for every PID 0.1 sec update
+   */
+  public Command turnToAngleCmd(double angleDeg) {
+    return runOnce(() -> {
+      m_gyro.reset();
+      p_controller.reset();
+    })
+        .andThen(run(() -> arcaDrivP(0, (p_controller.calculate(m_gyro.getAngleZ(), angleDeg)) * 0.08)))
+        .until(p_controller::atSetpoint)
         .finallyDo(interrupted -> arcaDriv(0, 0));
+  } // end tTACmd
 
-  }  // end drivDistCmd
-
-    /* Returns command to turn to an angle using PIDcontroller */
-    public Command turnToAngleCmd(double angleDeg) {
-      return runOnce( () -> { 
-              m_gyro.reset();
-              p_controller.reset(); 
-            })
-          .andThen(run(() -> 
-              arcaDrivP(0, (p_controller.calculate(m_gyro.getAngleZ(), angleDeg)) * 0.05)))
-          .until(p_controller::atSetpoint)
-          .finallyDo(interrupted -> arcaDriv(0, 0));
-          } // end tTACmd
-          
-  /* Returns command to turn to an angle using motion profiled PID control */
+  /* Returns command to turn to an angle using motion profiled PID */
   public Command turnToAngleProfCommand(double angleDeg) {
-    return runOnce( () -> { 
-            m_gyro.reset();
-            profP_controller.reset(0); 
-          })
-        .andThen(run(() -> 
-            arcaDrivP(0, (profP_controller.calculate(m_gyro.getAngleZ(), angleDeg)) * 0.05)))
+    return runOnce(() -> {
+      m_gyro.reset();
+      profP_controller.reset(0);
+    })
+        .andThen(run(() -> arcaDrivP(0, (profP_controller.calculate(m_gyro.getAngleZ(), angleDeg)) * 0.08)))
         .until(profP_controller::atGoal)
         .finallyDo(interrupted -> arcaDriv(0, 0));
 
   } // end TT angle cmd
-              // calc need?? Divide FF voltage by battery voltage to normalize to [-1, 1]
-            // + m_feedforward.calculate(profP_controller.getSetpoint().velocity)
-            // / RobotController.getBatteryVoltage()))
+
+  /* returns sequence: drive straight, turn 180, repeat */
+  public Command AutoSequComm(double distance, double angle) {
+    return runOnce(() -> {
+      m_gyro.reset();
+      p_controller.reset();
+    })
+        .andThen(driveDistanceCmd(distance, 0.5))
+        .andThen(new WaitCommand(4))
+        .andThen(turnToAngleCmd(-angle))
+        .andThen(new WaitCommand(4))
+        .andThen(driveDistanceCmd(distance, 0.5))
+        .andThen(new WaitCommand(4))
+        .andThen(turnToAngleCmd(angle))
+
+        .finallyDo(interrupted -> arcaDriv(0, 0));
+
+  } // end auto sequence
 
   public void resetEncoders() {
     m_leftEncoder.reset();

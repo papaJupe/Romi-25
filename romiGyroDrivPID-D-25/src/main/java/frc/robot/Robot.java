@@ -127,7 +127,7 @@ public class Robot extends TimedRobot {
     m_gyro.reset();
 
     // Stabilize to drive straight w/ gyro when R bumper is held
-    // in teleOp, bypassing tP AD cmd; Auto now has its own PID cmds
+    // in teleOp, bypassing tP AD cmd; 
     // piDriv is calculating angle error 5x slower than control loop
     // so I need to apply .calc feedbk w/ 5x smaller dX than normal
     new JoystickButton(m_controller, 6)
