@@ -1,3 +1,4 @@
+// romiGyroDrivPID - C  25           DriveSubsystem.j
 
 package frc.robot.subsystems;
 
@@ -18,6 +19,7 @@ public class DriveSubsys extends SubsystemBase {
   private static final double kCountsPerRevolution = 1440.0;
   private static final double kWheelDiameterInch = 2.756; // 70 mm
   private double maxFactor = 1.0; // speed multiplier
+  private double rotFactor = 1.0; // turn multiplier
 
   // Romi has left and right motors set to
   // PWM channels 0 and 1 respectively
@@ -36,10 +38,12 @@ public class DriveSubsys extends SubsystemBase {
   // instance RomiGyro
   public final RomiGyro m_gyro = new RomiGyro();
 
+  // slowing period from 0.02 --> 0.1, 50 hz calc deltas are 5x smaller
   private final PIDController p_controller = new PIDController(
       DriveConstants.kTurnP,
       DriveConstants.kTurnI,
       DriveConstants.kTurnD,
+      0.1);
 
   private final ProfiledPIDController profP_controller = new ProfiledPIDController(
       DriveConstants.kTurnP,
@@ -48,8 +52,14 @@ public class DriveSubsys extends SubsystemBase {
       new TrapezoidProfile.Constraints(
           DriveConstants.kMaxTurnDegPerSec,
           DriveConstants.kMaxTurnAccel),
+      0.1);
 
   // to use FF + FB for drive accuracy, sometime
+  // private final SimpleMotorFeedforward m_feedforward =
+  // new SimpleMotorFeedforward(
+  // DriveConstants.ksVolts,
+  // DriveConstants.kvVoltSecondsPerInch,
+  // DriveConstants.kaVoltSecondsSquaredPerinch);
 
   /* Construct a new drivetrain subsyst */
   public DriveSubsys() {
@@ -83,16 +93,20 @@ public class DriveSubsys extends SubsystemBase {
   // because top aD() is subsys. class method, second is inherited
   // super's diffDrive method; using same name == sloppy coding
   public void arcaDriv(double xaxisSpeed, double zaxisRotate) {
+    // stick input Y must invert by method caller
     // diffDrive's aD internally inverts z-rot to make (-) go CW, so..
+    m_diffDrive.arcadeDrive(xaxisSpeed * maxFactor, -zaxisRotate * rotFactor, true);
   }
 
   // small PID feedback numbers work better if not squared
   public void arcaDrivP(double xaxisSpeed, double zaxisRotate) {
     // PID feedback should not need speed invert ?
     // diffDrive's aD internally inverts z-rot to make (-) go CW, so..
+    m_diffDrive.arcadeDrive(xaxisSpeed * maxFactor, -zaxisRotate * 0.85, false);
   }
 
   // Return a command that drives the robot with arcade control
+  // ? would normal param work as well?
   // public Command arcadeDriveCommand(DoubleSupplier fwd, DoubleSupplier rot) {
   // // A split-stick arcade command, with forward/backward controlled by the left
   // // hand, and turning controlled by the right.
@@ -132,6 +146,8 @@ public class DriveSubsys extends SubsystemBase {
         .andThen(run(() -> arcaDriv(speed, 0.14)))
 >>>>>>> 9b1d170a175aec2748b8c267d59408b54e9b83c9
         // End command when wheel has turned the specified distance
+        .until(() -> // Math calc assume positive speed
+        Math.max(m_leftEncoder.getDistance(), m_rightEncoder.getDistance()) >= distanceInch)
         // Stop motor when the command ends
         .finallyDo(interrupted -> arcaDriv(0, 0.0));
 
